@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="10" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rt.batchfile_app.RenameController"
+      prefWidth="800" prefHeight="750" minHeight="600" minWidth="700">
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20"/>
+    </padding>
+
+    <!-- 标题 -->
+    <Label text="批量文件夹重命名工具" style="-fx-font-size: 18px; -fx-font-weight: bold;"/>
+
+    <!-- Excel文件选择区域 -->
+    <VBox spacing="5">
+        <Label text="选择Excel文件（包含新名称列表）:"/>
+        <HBox spacing="10">
+            <TextField fx:id="excelPathField" promptText="请选择Excel文件（支持拖拽或粘贴路径）" HBox.hgrow="ALWAYS"/>
+            <Button text="浏览..." onAction="#selectExcelFile"/>
+        </HBox>
+    </VBox>
+
+    <!-- 文件夹选择区域 -->
+    <VBox spacing="5">
+        <Label text="选择父目录（自动识别）:"/>
+        <HBox spacing="10">
+            <TextField fx:id="folderPathField" promptText="从剪贴板获取后自动显示" HBox.hgrow="ALWAYS" editable="false"/>
+        </HBox>
+    </VBox>
+
+    <!-- 从剪贴板获取文件夹 -->
+    <VBox spacing="5">
+        <Label text="从资源管理器选中的文件夹:"/>
+        <Button text="📋 从剪贴板获取文件夹" onAction="#getFoldersFromClipboard" 
+                style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20 10 20;"/>
+        <TextArea fx:id="selectedFoldersArea" promptText="选中文件夹后按Ctrl+C复制，然后点击上方按钮..." 
+                  editable="false" wrapText="true"
+                  style="-fx-font-size: 12px; -fx-font-family: 'Microsoft YaHei', 'SimSun', 'Consolas'; -fx-text-fill: #333333;"
+                  prefHeight="100"/>
+    </VBox>
+
+    <!-- 操作按钮 -->
+    <HBox spacing="10">
+        <Button text="开始重命名文件夹" onAction="#executeRename" 
+                style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20 10 20;"/>
+        <Button text="开始重命名文件" onAction="#executeRenameFiles" 
+                style="-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20 10 20;"/>
+        <Button text="清空日志" onAction="#clearLog"
+                style="-fx-font-size: 14px; -fx-padding: 10 20 10 20;"/>
+    </HBox>
+
+    <!-- 日志显示区域 -->
+    <VBox VBox.vgrow="ALWAYS">
+        <Label text="操作日志:"/>
+        <TextArea fx:id="logArea" editable="false" wrapText="true" 
+                  VBox.vgrow="ALWAYS" 
+                  style="-fx-font-family: 'Microsoft YaHei', 'SimSun', 'Consolas'; -fx-font-size: 12px;"/>
+    </VBox>
+
+    <!-- 使用说明 -->
+    <ScrollPane fitToWidth="true" prefHeight="220" style="-fx-background: #f5f5f5; -fx-border-color: #ddd; -fx-border-radius: 5;">
+        <VBox spacing="5" style="-fx-padding: 10;">
+            <Label text="使用说明:" style="-fx-font-weight: bold; -fx-font-size: 13px;"/>
+            <Label text="【功能1：重命名文件夹】" style="-fx-font-weight: bold; -fx-text-fill: #4CAF50; -fx-font-size: 12px;" wrapText="true"/>
+            <Label text="  1. 准备Excel文件，包含4列数据（A+B+C+D），将自动组合成文件夹名称" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  2. 在资源管理器中选中需要重命名的文件夹（可多选）" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  3. 按 Ctrl+C 复制选中的文件夹" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  4. 点击'📋 从剪贴板获取文件夹'按钮" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  5. 点击'开始重命名文件夹'按钮" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="" style="-fx-font-size: 3px;"/>
+            <Label text="【功能2：重命名文件夹内的文件】" style="-fx-font-weight: bold; -fx-text-fill: #FF9800; -fx-font-size: 12px;" wrapText="true"/>
+            <Label text="  1. 在资源管理器中选中需要处理的文件夹（可多选）" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  2. 按 Ctrl+C 复制选中的文件夹" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  3. 点击'📋 从剪贴板获取文件夹'按钮" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  4. 点击'开始重命名文件'按钮" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  5. 文件将自动重命名为与文件夹相同的名称（保留原扩展名）" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  6. 空文件夹将自动跳过" wrapText="true" style="-fx-font-size: 11px;"/>
+            <Label text="  注：此功能不需要Excel文件，直接使用文件夹名称" wrapText="true" style="-fx-text-fill: #666; -fx-font-size: 11px; -fx-font-style: italic;"/>
+            <Label text="" style="-fx-font-size: 3px;"/>
+            <Label text=" 注意：此操作不可逆，请提前备份重要数据！" 
+                   style="-fx-text-fill: red; -fx-font-weight: bold; -fx-font-size: 11px;" wrapText="true"/>
+        </VBox>
+    </ScrollPane>
+</VBox>
