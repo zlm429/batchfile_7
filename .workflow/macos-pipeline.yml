@@ -1,41 +1,36 @@
 version: '1.0'
 name: macos-build-pipeline
-displayName: macOS 自动打包
+displayName: macOS自动打包
 stages:
   - stage:
     name: build
-    displayName: 构建 macOS 安装包
+    displayName: 编译构建
     steps:
-      - step: build@custom
-        name: build_macos
-        displayName: 编译并打包 macOS DMG
-        # 使用 macOS 构建环境
-        platform: macos
-        # 使用 JDK 17
+      - step: build@maven
+        name: build_maven
+        displayName: Maven构建
         jdkVersion: 17
-        # 构建命令
+        mavenVersion: 3.6.3
         commands:
-          - echo "开始编译项目..."
+          - mvn -B clean package -Dmaven.test.skip=true
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - ./target
+      - step: build@custom
+        name: build_dmg
+        displayName: 打包DMG
+        platform: macos
+        jdkVersion: 17
+        commands:
           - chmod +x mvnw
-          - ./mvnw clean package -DskipTests
-          - echo "编译完成，开始打包 DMG..."
-          - jpackage --input target \
-                     --name "BatchRenameTool" \
-                     --main-jar batchfile_app-0.0.1-SNAPSHOT.jar \
-                     --main-class com.rt.batchfile_app.BatchfileAppApplication \
-                     --dest target/dist \
-                     --type dmg \
-                     --app-version 1.0.0 \
-                     --vendor RT \
-                     --java-options "--add-modules" \
-                     --java-options "javafx.controls,javafx.fxml"
-          - echo "打包完成！"
+          - jpackage --input target --name BatchRenameTool --main-jar batchfile_app-0.0.1-SNAPSHOT.jar --main-class com.rt.batchfile_app.BatchfileAppApplication --dest target/dist --type dmg --app-version 1.0.0 --vendor RT --java-options "--add-modules" --java-options "javafx.controls,javafx.fxml"
           - ls -lh target/dist/*.dmg
-        # 构建产物
         artifacts:
           - name: DMG_ARTIFACT
             path:
               - ./target/dist/*.dmg
+        dependsOn: build_maven
 triggers:
   push:
     branches:
