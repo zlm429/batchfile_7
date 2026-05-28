@@ -20,9 +20,7 @@ stages:
       - step: build@custom
         name: build_dmg
         displayName: 打包DMG
-        platform: macos
-        jdkVersion: 17
-        commands:
+        script:
           - chmod +x mvnw
           - jpackage --input target --name BatchRenameTool --main-jar batchfile_app-0.0.1-SNAPSHOT.jar --main-class com.rt.batchfile_app.BatchfileAppApplication --dest target/dist --type dmg --app-version 1.0.0 --vendor RT --java-options "--add-modules" --java-options "javafx.controls,javafx.fxml"
           - ls -lh target/dist/*.dmg
@@ -30,7 +28,6 @@ stages:
           - name: DMG_ARTIFACT
             path:
               - ./target/dist/*.dmg
-        dependArtifact: BUILD_ARTIFACT
 triggers:
   push:
     branches:
