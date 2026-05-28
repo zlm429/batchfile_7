@@ -205,7 +205,7 @@ public class RenameController {
                     continue;
                 }
                 
-                // 拼接4列数据：A+B+C+D（用空格连接）
+                // 拼接4列数据：A+B+C+D（用短横线连接）
                 StringBuilder nameBuilder = new StringBuilder();
                 for (int i = 0; i < 4; i++) {
                     org.apache.poi.ss.usermodel.Cell cell = row.getCell(i);
@@ -213,7 +213,7 @@ public class RenameController {
                         String value = getCellValue(cell);
                         if (value != null && !value.trim().isEmpty()) {
                             if (nameBuilder.length() > 0) {
-                                nameBuilder.append(" "); // 用空格连接各列
+                                nameBuilder.append("-"); // 用短横线连接各列
                             }
                             nameBuilder.append(value.trim());
                         }
@@ -322,8 +322,9 @@ public class RenameController {
 
         for (File folder : selectedFolderFiles) {
             try {
-                // 使用文件夹名称作为文件新名称
+                // 使用文件夹名称的第一个-前面的部分作为文件新名称（料号）
                 String folderName = folder.getName();
+                String materialCode = extractMaterialCode(folderName);
                 
                 // 重命名文件夹内的所有文件
                 File[] files = folder.listFiles();
@@ -333,9 +334,9 @@ public class RenameController {
                     continue;
                 }
                 
-                renameFilesInFolder(folder, folderName);
+                renameFilesInFolder(folder, materialCode);
                 successCount++;
-                appendLog("成功重命名文件: " + folder.getName() + " 内的文件 -> " + folderName);
+                appendLog("成功重命名文件: " + folder.getName() + " 内的文件 -> " + materialCode);
             } catch (Exception e) {
                 failCount++;
                 appendLog("重命名文件失败: " + folder.getName() + ", 错误: " + e.getMessage());
@@ -396,7 +397,7 @@ public class RenameController {
      */
     private void renameFilesInFolder(File folder, String newFileName) throws IOException {
         appendLog("正在处理文件夹: " + folder.getAbsolutePath());
-        appendLog("文件新名称: " + newFileName);
+        appendLog("文件新名称（料号）: " + newFileName);
         
         // 清理文件名中的非法字符
         newFileName = sanitizeFileName(newFileName);
@@ -501,5 +502,25 @@ public class RenameController {
             alert.setContentText(message);
             alert.showAndWait();
         });
+    }
+
+    /**
+     * 提取料号（第一个-前面的部分）
+     * @param folderName 文件夹名称
+     * @return 料号（第一个-前面的部分），如果没有-则返回整个名称
+     */
+    private String extractMaterialCode(String folderName) {
+        if (folderName == null || folderName.isEmpty()) {
+            return folderName;
+        }
+        
+        int dashIndex = folderName.indexOf('-');
+        if (dashIndex > 0) {
+            // 找到第一个-，返回前面的部分
+            return folderName.substring(0, dashIndex);
+        } else {
+            // 没有-，返回整个名称
+            return folderName;
+        }
     }
 }

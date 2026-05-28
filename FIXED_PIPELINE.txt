@@ -1,0 +1,36 @@
+version: '1.0'
+name: build-package
+displayName: 构建打包
+triggers:
+  push:
+    branches:
+      - master
+
+variables:
+  JAVA_VERSION: '17'
+
+jobs:
+  build:
+    name: build-job
+    displayName: 构建Windows应用
+    runsOn: windows-latest
+    steps:
+      - name: 拉取代码
+        uses: checkout@v1
+      - name: 设置Java
+        uses: setup-java@v1
+        with:
+          java: ${JAVA_VERSION}
+      - name: 编译JAR
+        run: |
+          mvn clean package -DskipTests
+      - name: 打包应用
+        run: |
+          $jarFile = Get-ChildItem -Path target -Filter "batchfile_app-*.jar" -Exclude "*.original" | Select-Object -First 1
+          jpackage --input target --name "批量文件夹重命名工具" --main-jar $jarFile.Name --main-class com.rt.batchfile_app.BatchfileAppApplication --dest target/dist --type app-image --app-version 1.0.0 --vendor RT --java-options "--add-modules" --java-options "javafx.controls,javafx.fxml"
+      - name: 上传产物
+        uses: upload@v1
+        with:
+          name: windows-app
+          path:
+            - target/dist
