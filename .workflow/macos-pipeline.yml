@@ -30,7 +30,7 @@ stages:
           - name: DMG_ARTIFACT
             path:
               - ./target/dist/*.dmg
-        dependsOn: build_maven
+        dependArtifact: BUILD_ARTIFACT
 triggers:
   push:
     branches:
