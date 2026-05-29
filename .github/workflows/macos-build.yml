@@ -9,7 +9,10 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        os: [macos-latest, macos-13] # macos-latest = ARM64, macos-13 = Intel
+    runs-on: ${{ matrix.os }}
     
     steps:
     - name: Checkout code
@@ -21,13 +24,24 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
+    - name: Detect macOS Architecture
+      run: |
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "arm64" ]; then
+          echo "JAVAfx_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-aarch64_bin-sdk.zip" >> $GITHUB_ENV
+          echo "PLATFORM_NAME=Apple-Silicon" >> $GITHUB_ENV
+        else
+          echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip" >> $GITHUB_ENV
+          echo "PLATFORM_NAME=Intel" >> $GITHUB_ENV
+        fi
+    
     - name: Cache Maven packages
       uses: actions/cache@v3
       with:
         path: ~/.m2
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        key: ${{ runner.os }}-${{ matrix.os }}-maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: |
-          ${{ runner.os }}-maven-
+          ${{ runner.os }}-${{ matrix.os }}-maven-
     
     - name: Build with Maven
       run: |
@@ -36,8 +50,7 @@ jobs:
     
     - name: Download JavaFX SDK
       run: |
-        # 下载 macOS ARM64 版本的 JavaFX SDK
-        curl -L https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-aarch64_bin-sdk.zip -o javafx.zip
+        curl -L ${{ env.JAVAFX_URL }} -o javafx.zip
         unzip javafx.zip -d /tmp/
         mv /tmp/javafx-sdk-17.0.2 /tmp/javafx-sdk
         echo "JAVAFX_PATH=/tmp/javafx-sdk/lib" >> $GITHUB_ENV
@@ -61,7 +74,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: BatchRenameTool-macOS
+        name: BatchRenameTool-macOS-${{ env.PLATFORM_NAME }}
         path: target/dist/*.dmg
         retention-days: 30
     
@@ -80,8 +93,17 @@ jobs:
           - ✅ 批量重命名文件夹内的文件
           - ✅ 自动分类文件到对应文件夹（新功能）
           
+          ### 选择正确的版本
+          - **Apple Silicon (M1/M2/M3)**: 适用于 2020 年后的新款 Mac
+          - **Intel**: 适用于 2020 年前的老款 Mac
+          
+          ### 如何查看您的 Mac 架构？
+          点击左上角 苹果菜单 → 关于本机 → 查看"芯片"或"处理器"
+          - 显示"Apple M1/M2/M3" → 下载 Apple-Silicon 版本
+          - 显示"Intel" → 下载 Intel 版本
+          
           ### 安装说明
-          1. 下载 DMG 文件
+          1. 下载对应的 DMG 文件
           2. 双击打开
           3. 将应用拖拽到 Applications 文件夹
           4. 首次运行：右键点击 → 选择"打开" → 再次点击"打开"
