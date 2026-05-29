@@ -1,0 +1,132 @@
+name: Windows Build and Package
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Cache Maven packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    
+    - name: Build with Maven
+      run: |
+        .\mvnw.cmd clean package -DskipTests
+    
+    - name: Download JavaFX SDK
+      run: |
+        curl -L https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_windows-x64_bin-sdk.zip -o javafx.zip
+        Expand-Archive -Path javafx.zip -DestinationPath C:\javafx
+        Move-Item -Path "C:\javafx\javafx-sdk-17.0.2" -Destination "C:\javafx-sdk"
+        echo "JAVAFX_PATH=C:\javafx-sdk\lib" >> $env:GITHUB_ENV
+    
+    - name: Package as EXE
+      run: |
+        jpackage --input target `
+                 --name "BatchRenameTool" `
+                 --main-jar batchfile_app-0.0.1-SNAPSHOT.jar `
+                 --main-class com.rt.batchfile_app.BatchfileAppApplication `
+                 --dest target/dist `
+                 --type exe `
+                 --app-version 1.0.0 `
+                 --vendor RT `
+                 --module-path $env:JAVAFX_PATH `
+                 --add-modules javafx.controls,javafx.fxml `
+                 --java-options "-Dfile.encoding=UTF-8" `
+                 --win-console
+    
+    - name: Package as MSI
+      run: |
+        jpackage --input target `
+                 --name "BatchRenameTool" `
+                 --main-jar batchfile_app-0.0.1-SNAPSHOT.jar `
+                 --main-class com.rt.batchfile_app.BatchfileAppApplication `
+                 --dest target/dist `
+                 --type msi `
+                 --app-version 1.0.0 `
+                 --vendor RT `
+                 --module-path $env:JAVAFX_PATH `
+                 --add-modules javafx.controls,javafx.fxml `
+                 --java-options "-Dfile.encoding=UTF-8" `
+                 --win-dir-chooser `
+                 --win-menu `
+                 --win-shortcut
+    
+    - name: Upload EXE artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: BatchRenameTool-Windows-EXE
+        path: target/dist/*.exe
+        retention-days: 30
+    
+    - name: Upload MSI artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: BatchRenameTool-Windows-MSI
+        path: target/dist/*.msi
+        retention-days: 30
+    
+    - name: Create Release
+      if: github.event_name == 'push' && success()
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          target/dist/*.exe
+          target/dist/*.msi
+        tag_name: v${{ github.run_number }}
+        name: Release v${{ github.run_number }}
+        body: |
+          ## 批量文件夹重命名工具 - Windows 版本
+          
+          ### 功能特性
+          - ✅ 批量重命名文件夹（支持 Excel 导入）
+          - ✅ 批量重命名文件夹内的文件
+          - ✅ 自动分类文件到对应文件夹（新功能）
+          
+          ### 下载选项
+          - **EXE 版本**：免安装便携版
+          - **MSI 安装包**：标准 Windows 安装程序
+          
+          ### 安装说明
+          
+          #### EXE 版本（推荐）
+          1. 下载 `.exe` 文件
+          2. 双击运行即可使用
+          3. 无需安装，自带 JRE 环境
+          
+          #### MSI 安装版本
+          1. 下载 `.msi` 文件
+          2. 双击运行安装程序
+          3. 按提示完成安装
+          4. 可从开始菜单启动
+          
+          ### 系统要求
+          - Windows 10 或更高版本
+          - 无需安装 Java 环境（已内置 JRE）
+          - 至少 200MB 磁盘空间
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
