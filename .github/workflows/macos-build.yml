@@ -16,10 +16,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up JDK 17
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
@@ -28,7 +28,7 @@ jobs:
       run: |
         ARCH=$(uname -m)
         if [ "$ARCH" = "arm64" ]; then
-          echo "JAVAfx_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-aarch64_bin-sdk.zip" >> $GITHUB_ENV
+          echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-aarch64_bin-sdk.zip" >> $GITHUB_ENV
           echo "PLATFORM_NAME=Apple-Silicon" >> $GITHUB_ENV
         else
           echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip" >> $GITHUB_ENV
@@ -36,7 +36,7 @@ jobs:
         fi
     
     - name: Cache Maven packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.m2
         key: ${{ runner.os }}-${{ matrix.os }}-maven-${{ hashFiles('**/pom.xml') }}
