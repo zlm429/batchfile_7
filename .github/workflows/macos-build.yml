@@ -7,41 +7,35 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # 强制使用 Node.js 24
+
 jobs:
   build-macos:
-    strategy:
-      matrix:
-        os: [macos-latest, macos-13] # macos-latest = ARM64, macos-13 = Intel
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest # Apple Silicon (M1/M2/M3)
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     
     - name: Set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '17'
         distribution: 'temurin'
     
     - name: Detect macOS Architecture
       run: |
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "arm64" ]; then
-          echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-aarch64_bin-sdk.zip" >> $GITHUB_ENV
-          echo "PLATFORM_NAME=Apple-Silicon" >> $GITHUB_ENV
-        else
-          echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip" >> $GITHUB_ENV
-          echo "PLATFORM_NAME=Intel" >> $GITHUB_ENV
-        fi
+        echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-aarch64_bin-sdk.zip" >> $GITHUB_ENV
+        echo "PLATFORM_NAME=Apple-Silicon" >> $GITHUB_ENV
     
     - name: Cache Maven packages
       uses: actions/cache@v4
       with:
         path: ~/.m2
-        key: ${{ runner.os }}-${{ matrix.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: |
-          ${{ runner.os }}-${{ matrix.os }}-maven-
+          ${{ runner.os }}-maven-
     
     - name: Build with Maven
       run: |
