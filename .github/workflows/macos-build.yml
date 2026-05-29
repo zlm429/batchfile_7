@@ -12,7 +12,7 @@ env:
 
 jobs:
   build-macos:
-    runs-on: macos-latest # Apple Silicon (M1/M2/M3)
+    runs-on: macos-13 # Intel
     
     steps:
     - name: Checkout code
@@ -26,8 +26,8 @@ jobs:
     
     - name: Detect macOS Architecture
       run: |
-        echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-aarch64_bin-sdk.zip" >> $GITHUB_ENV
-        echo "PLATFORM_NAME=Apple-Silicon" >> $GITHUB_ENV
+        echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip" >> $GITHUB_ENV
+        echo "PLATFORM_NAME=Intel" >> $GITHUB_ENV
     
     - name: Cache Maven packages
       uses: actions/cache@v4
@@ -88,13 +88,11 @@ jobs:
           - ✅ 自动分类文件到对应文件夹（新功能）
           
           ### 选择正确的版本
-          - **Apple Silicon (M1/M2/M3)**: 适用于 2020 年后的新款 Mac
-          - **Intel**: 适用于 2020 年前的老款 Mac
+          - **Intel**: 适用于 2020 年前的 Intel 处理器 Mac
           
           ### 如何查看您的 Mac 架构？
-          点击左上角 苹果菜单 → 关于本机 → 查看"芯片"或"处理器"
-          - 显示"Apple M1/M2/M3" → 下载 Apple-Silicon 版本
-          - 显示"Intel" → 下载 Intel 版本
+          点击左上角 苹果菜单 → 关于本机 → 查看"处理器"
+          - 显示"Intel" → 下载此版本
           
           ### 安装说明
           1. 下载对应的 DMG 文件
