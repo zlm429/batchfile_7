@@ -1,246 +1,174 @@
-name: Windows Build and Package
+name: Build Windows EXE
 
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    
+  build:
+    runs-on: windows-2022
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-    
-    - name: Set up JDK 17
-      uses: actions/setup-java@v5
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-    
-    - name: Cache Maven packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
-    
-    - name: Build with Maven
-      run: |
-        .\mvnw.cmd clean package -DskipTests
-    
-    - name: Download JavaFX SDK
-      run: |
-        curl -L https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_windows-x64_bin-sdk.zip -o javafx.zip
-        Expand-Archive -Path javafx.zip -DestinationPath C:\javafx
-        Move-Item -Path "C:\javafx\javafx-sdk-17.0.2" -Destination "C:\javafx-sdk"
-        echo "JAVAFX_PATH=C:\javafx-sdk\lib" >> $env:GITHUB_ENV
-    
-    - name: Download Launch4j
-      run: |
-        # 使用 Chocolatey 安装 Launch4j
-        choco install launch4j -y --no-progress
-        
-        # 确保 C:\launch4j 是目录
-        if (Test-Path "C:\launch4j") {
-          Remove-Item "C:\launch4j" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        New-Item -Path "C:\launch4j" -ItemType Directory -Force | Out-Null
-        
-        # 查找 Launch4j 安装路径（多种可能的位置）
-        Write-Host "正在查找 Launch4j 安装路径..."
-        $found = $false
-        
-        # 方法1：查找 Program Files 中的安装目录（优先）
-        $programFilesPaths = @(
-          "C:\Program Files\Launch4j",
-          "C:\Program Files (x86)\Launch4j"
-        )
-        foreach ($path in $programFilesPaths) {
-          if (Test-Path "$path\launch4j.exe") {
-            Write-Host "找到 Program Files 安装: $path"
-            Copy-Item "$path\*" -Destination "C:\launch4j" -Recurse -Force
-            $found = $true
-            break
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn -B clean package -DskipTests
+        shell: powershell
+
+      - name: Download JavaFX SDK
+        run: |
+          curl -L https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_windows-x64_bin-sdk.zip -o javafx.zip
+          Expand-Archive -Path javafx.zip -DestinationPath C:\javafx
+          Move-Item -Path "C:\javafx\javafx-sdk-17.0.2" -Destination "C:\javafx-sdk"
+        shell: powershell
+
+      - name: Install Launch4j via Chocolatey
+        run: |
+          choco install launch4j -y --no-progress
+          
+          New-Item -Path "C:\launch4j" -ItemType Directory -Force
+          $exe = Get-ChildItem "C:\Program Files (x86)\Launch4j" -Recurse -Filter "launch4j.exe" | Select-Object -First 1
+
+          if (-not $exe) { throw " 找不到 launch4j.exe" }
+          Copy-Item -Path "$($exe.Directory.FullName)\*" -Destination "C:\launch4j\" -Recurse -Force
+
+          if (-not (Test-Path "C:\launch4j\launch4j.exe")) { throw " Launch4j 复制失败" }
+        shell: powershell
+
+      - name: Download JRE 17 (Temurin)
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.11%2B9/OpenJDK17U-jre_x64_windows_hotspot_17.0.11_9.zip" -OutFile "jre17.zip"
+          Expand-Archive -Path "jre17.zip" -DestinationPath "target\jre" -Force
+        shell: powershell
+
+      - name: Package EXE with Launch4j
+        run: |
+          # 创建 Launch4j 配置文件
+          @'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <launch4jConfig>
+            <dontWrapJar>false</dontWrapJar>
+            <headerType>gui</headerType>
+            <jar>target\batchfile_app-0.0.1-SNAPSHOT.jar</jar>
+            <outfile>target\dist\BatchRenameTool.exe</outfile>
+            <errTitle>BatchRenameTool</errTitle>
+            <chdir>.</chdir>
+            <priority>normal</priority>
+            <downloadUrl>https://www.java.com/download/</downloadUrl>
+            <supportUrl>https://github.com/zlm429/batchfile_new</supportUrl>
+            <customProcName>false</customProcName>
+            <stayAlive>false</stayAlive>
+            <icon></icon>
+            <jre>
+              <path>jre</path>
+              <bundledJre64Bit>true</bundledJre64Bit>
+              <bundledJreAsFallback>false</bundledJreAsFallback>
+              <minVersion>17</minVersion>
+              <jdkPreference>preferJre</jdkPreference>
+              <runtimeBits>64</runtimeBits>
+            </jre>
+          </launch4jConfig>
+          '@ | Out-File -FilePath launch4j-config.xml -Encoding UTF8
+
+          Write-Host "=== Debug Paths ==="
+          Write-Host "Launch4j: C:\launch4j\launch4j.exe"
+          Write-Host "Config:   launch4j-config.xml"
+          Write-Host "JAR:       target\batchfile_app-0.0.1-SNAPSHOT.jar"
+          Write-Host "Out EXE:   target\dist\BatchRenameTool.exe"
+
+          if (-not (Test-Path "C:\launch4j\launch4j.exe")) { throw "launch4j.exe missing" }
+          if (-not (Test-Path "launch4j-config.xml")) { throw "config.xml missing" }
+          if (-not (Test-Path "target\batchfile_app-0.0.1-SNAPSHOT.jar")) { throw "JAR missing" }
+
+          New-Item -Path "target\dist" -ItemType Directory -Force | Out-Null
+
+          & "C:\launch4j\launch4j.exe" launch4j-config.xml 2>&1
+          $e = $LASTEXITCODE
+          Write-Host "Launch4j exit code = $e"
+
+          if (-not (Test-Path "target\dist\BatchRenameTool.exe")) {
+            throw "EXE not generated, exit code $e"
           }
-        }
-        
-        # 方法2：在 Chocolatey lib 中搜索
-        if (-not $found) {
-          Write-Host "Chocolatey lib 目录结构:"
-          Get-ChildItem "C:\ProgramData\chocolatey\lib\launch4j" -Recurse | Select-Object FullName -First 30
+        shell: powershell
+
+      - name: Bundle JRE with EXE
+        run: |
+          $jreDir = Get-ChildItem "target\jre" -Directory | Select-Object -First 1
+          if (-not $jreDir) { throw "JRE directory not found" }
           
-          $allExeFiles = Get-ChildItem "C:\ProgramData\chocolatey\lib\launch4j" -Recurse -Filter "launch4j.exe" -ErrorAction SilentlyContinue
-          if ($allExeFiles) {
-            Write-Host "找到 launch4j.exe: $($allExeFiles[0].FullName)"
-            $exeDir = $allExeFiles[0].Directory.FullName
-            Copy-Item "$exeDir\*" -Destination "C:\launch4j" -Recurse -Force
-            $found = $true
-          }
-        }
-        
-        # 方法3：检查 Chocolatey bin 目录（shim）
-        if (-not $found) {
-          if (Test-Path "C:\ProgramData\chocolatey\bin\launch4j.exe") {
-            Write-Host "找到 Chocolatey shim: C:\ProgramData\chocolatey\bin\launch4j.exe"
-            # 复制整个 lib 目录
-            Copy-Item "C:\ProgramData\chocolatey\lib\launch4j\*" -Destination "C:\launch4j" -Recurse -Force -ErrorAction SilentlyContinue
-            $found = $true
-          }
-        }
-        
-        # 最终验证
-        if (Test-Path "C:\launch4j\launch4j.exe") {
-          Write-Host "Launch4j 安装成功！"
-          Write-Host "可执行文件: C:\launch4j\launch4j.exe"
-        } else {
-          Write-Host "C:\launch4j 目录内容:"
-          Get-ChildItem "C:\launch4j" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
-          throw "Launch4j 安装失败，未找到可执行文件"
-        }
-    
-    - name: Download JRE 17
-      run: |
-        # 下载 Eclipse Temurin JRE 17（使用更稳定的链接）
-        $jreUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jre_x64_windows_hotspot_17.0.13_11.zip"
-        
-        Write-Host "开始下载 JRE 17..."
-        curl -L -f "$jreUrl" -o jre.zip
-        
-        if (-not (Test-Path jre.zip)) {
-          throw "JRE 下载失败"
-        }
-        
-        Write-Host "解压 JRE..."
-        Expand-Archive -Path jre.zip -DestinationPath target/jre -Force
-        
-        # 重命名为更短的路径
-        $jreDir = Get-ChildItem target/jre -Directory | Select-Object -First 1
-        if ($jreDir) {
-          Rename-Item -Path $jreDir.FullName -NewName "jdk-17"
-          echo "JRE_PATH=target/jre/jdk-17" >> $env:GITHUB_ENV
-          Write-Host "JRE 安装成功: target/jre/jdk-17"
-        } else {
-          throw "JRE 解压后未找到目录"
-        }
-    
-    - name: Package as EXE (Launch4j)
-      run: |
-        # 创建 Launch4j 配置文件
-        @'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <launch4jConfig>
-          <dontWrapJar>false</dontWrapJar>
-          <headerType>gui</headerType>
-          <jar>target\batchfile_app-0.0.1-SNAPSHOT.jar</jar>
-          <outfile>target\dist\BatchRenameTool.exe</outfile>
-          <errTitle>BatchRenameTool</errTitle>
-          <chdir>.</chdir>
-          <priority>normal</priority>
-          <downloadUrl>https://www.java.com/download/</downloadUrl>
-          <supportUrl>https://github.com/zlm429/batchfile_new</supportUrl>
-          <customProcName>false</customProcName>
-          <stayAlive>false</stayAlive>
-          <icon></icon>
-          <jre>
-            <path>jre</path>
-            <bundledJre64Bit>true</bundledJre64Bit>
-            <bundledJreAsFallback>false</bundledJreAsFallback>
-            <minVersion>17</minVersion>
-            <jdkPreference>preferJre</jdkPreference>
-            <runtimeBits>64</runtimeBits>
-          </jre>
-        </launch4jConfig>
-        '@ | Out-File -FilePath launch4j-config.xml -Encoding UTF8
-        
-        # 使用 Launch4j 打包
-        & "C:\launch4j\launch4j.exe" launch4j-config.xml
-    
-    - name: Create EXE Distribution Package
-      run: |
-        # 创建发布包（包含 JRE、JavaFX、JAR 和 EXE）
-        $distDir = "target/dist"
-        $appName = "BatchRenameTool-Windows"
-        New-Item -Path "$distDir\$appName" -ItemType Directory -Force
-        
-        # 复制 JRE
-        Copy-Item "$env:JRE_PATH" -Destination "$distDir\$appName\jre" -Recurse
-        
-        # 复制所有 JavaFX 文件（包括 DLL）
-        Copy-Item "C:\javafx-sdk\lib\*" -Destination "$distDir\$appName\lib" -Recurse -Force
-        
-        # 列出 lib 目录内容，确认 DLL 存在
-        Write-Host "=== lib 目录内容 ==="
-        Get-ChildItem "$distDir\$appName\lib" -Recurse -Filter "*.dll" | Select-Object Name, Length
-        
-        # 复制 JAR 文件
-        Copy-Item "target\batchfile_app-0.0.1-SNAPSHOT.jar" -Destination "$distDir\$appName\"
-        
-        # 复制 Launch4j 生成的 EXE
-        Copy-Item "target\dist\BatchRenameTool.exe" -Destination "$distDir\$appName\"
-        
-        # 创建启动脚本
-        @'
-        @echo off
-        cd /d "%~dp0"
-        start jre\bin\javaw.exe -jar batchfile_app-0.0.1-SNAPSHOT.jar
-        '@ | Out-File -FilePath "$distDir\$appName\start.bat" -Encoding ASCII
-        
-        # 创建 README
-        @'
-        批量文件夹重命名工具 - Windows 版本
-        
-        使用方法：
-        1. 解压到任意目录
-        2. 双击 BatchRenameTool.exe 运行
-        3. 或者运行 start.bat 启动
-        
-        注意：本版本自带 JRE 和 JavaFX，无需额外安装！
-        '@ | Out-File -FilePath "$distDir\$appName\README.txt" -Encoding UTF8
-        
-        # 压缩成 ZIP
-        Compress-Archive -Path "$distDir\$appName\*" -DestinationPath "$distDir\BatchRenameTool-Windows.zip" -Force
-    
-    - name: Upload Windows Package
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: BatchRenameTool-Windows
-        path: target/dist/*.zip
-        retention-days: 30
-    
-    - name: Create Release
-      if: github.event_name == 'push' && success()
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          target/dist/*.zip
-        tag_name: v${{ github.run_number }}
-        name: Release v${{ github.run_number }}
-        body: |
-          ## 批量文件夹重命名工具 - Windows 版本
+          Copy-Item -Recurse "$($jreDir.FullName)" "target\dist\jre" -Force
+        shell: powershell
+
+      - name: Create Distribution Package
+        run: |
+          New-Item -Path "target\dist\BatchRenameTool-Windows" -ItemType Directory -Force
           
-          ### 功能特性
-          - ✅ 批量重命名文件夹（支持 Excel 导入）
-          - ✅ 批量重命名文件夹内的文件
-          - ✅ 自动分类文件到对应文件夹
+          # 复制 JRE
+          Copy-Item -Recurse "target\dist\jre" "target\dist\BatchRenameTool-Windows\jre" -Force
           
-          ### 安装说明
+          # 复制 JavaFX SDK
+          Copy-Item -Recurse "C:\javafx-sdk\lib" "target\dist\BatchRenameTool-Windows\lib" -Force
           
-          1. 下载 `BatchRenameTool-Windows.zip`
-          2. 解压到任意目录
-          3. 双击 `BatchRenameTool.exe` 运行
+          # 复制 JAR 和 EXE
+          Copy-Item "target\batchfile_app-0.0.1-SNAPSHOT.jar" "target\dist\BatchRenameTool-Windows\"
+          Copy-Item "target\dist\BatchRenameTool.exe" "target\dist\BatchRenameTool-Windows\"
           
-          ### 系统要求
-          - Windows 10 或更高版本
-          - **无需安装 Java 环境**（已内置 JRE 17 和 JavaFX）
-          - 约 200MB 磁盘空间
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 创建 README
+          @'
+          批量文件夹重命名工具 - Windows 版本
+          
+          使用方法：
+          1. 解压到任意目录
+          2. 双击 BatchRenameTool.exe 运行
+          
+          注意：本版本自带 JRE 和 JavaFX，无需额外安装！
+          '@ | Out-File -FilePath "target\dist\BatchRenameTool-Windows\README.txt" -Encoding UTF8
+          
+          # 压缩
+          Compress-Archive -Path "target\dist\BatchRenameTool-Windows\*" -DestinationPath "target\dist\BatchRenameTool-Windows.zip" -Force
+        shell: powershell
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BatchRenameTool-Windows
+          path: target/dist/BatchRenameTool-Windows.zip
+          retention-days: 30
+
+      - name: Create Release
+        if: github.event_name == 'push' && success()
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/dist/BatchRenameTool-Windows.zip
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            ## 批量文件夹重命名工具 - Windows 版本
+            
+            ### 功能特性
+            - ✅ 批量重命名文件夹（支持 Excel 导入）
+            - ✅ 批量重命名文件夹内的文件
+            - ✅ 自动分类文件到对应文件夹
+            
+            ### 安装说明
+            
+            1. 下载 `BatchRenameTool-Windows.zip`
+            2. 解压到任意目录
+            3. 双击 `BatchRenameTool.exe` 运行
+            
+            ### 系统要求
+            - Windows 10 或更高版本
+            - **无需安装 Java 环境**（已内置 JRE 17 和 JavaFX）
+            - 约 200MB 磁盘空间
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
