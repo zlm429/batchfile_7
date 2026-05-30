@@ -2,49 +2,31 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.14</version>
-        <relativePath/> <!-- lookup parent from repository -->
-    </parent>
+    
     <groupId>com.rt</groupId>
     <artifactId>batchfile_app</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>batchfile_app</name>
-    <description>batchfile_app</description>
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
+    <description>批量文件夹重命名工具</description>
+    <packaging>jar</packaging>
     <properties>
         <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <javafx.version>17.0.2</javafx.version>
     </properties>
     <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-        </dependency>
-
         <!-- JavaFX for GUI -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>17.0.2</version>
+            <version>${javafx.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
-            <version>17.0.2</version>
+            <version>${javafx.version}</version>
         </dependency>
 
         <!-- Apache POI for Excel processing -->
@@ -58,19 +40,15 @@
             <artifactId>poi-ooxml</artifactId>
             <version>5.2.3</version>
         </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Maven Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
                 <configuration>
                     <source>17</source>
                     <target>17</target>
@@ -78,50 +56,40 @@
                 </configuration>
             </plugin>
             
+            <!-- Maven JAR Plugin - 生成可执行 JAR -->
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
                 <configuration>
-                    <skip>true</skip>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.rt.batchfile_app.BatchfileAppApplication</mainClass>
+                        </manifest>
+                    </archive>
                 </configuration>
             </plugin>
             
-            <!-- JavaFX Maven Plugin -->
+            <!-- Maven Shade Plugin - 打包所有依赖到 JAR -->
             <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.8</version>
-                <configuration>
-                    <mainClass>com.rt.batchfile_app.BatchfileAppApplication</mainClass>
-                </configuration>
-            </plugin>
-            
-            <!-- jpackage 打包插件 -->
-            <plugin>
-                <groupId>org.panteleyev</groupId>
-                <artifactId>jpackage-maven-plugin</artifactId>
-                <version>1.6.0</version>
-                <configuration>
-                    <name>BatchRenameTool</name>
-                    <appVersion>1.0.0</appVersion>
-                    <vendor>RT</vendor>
-                    <destination>target/dist</destination>
-                    <input>target</input>
-                    <mainJar>batchfile_app-0.0.1-SNAPSHOT.jar</mainJar>
-                    <mainClass>com.rt.batchfile_app.BatchfileAppApplication</mainClass>
-                    <type>APP_IMAGE</type>
-                    <javaOptions>
-                        <option>--add-modules</option>
-                        <option>javafx.controls,javafx.fxml</option>
-                    </javaOptions>
-                </configuration>
-            </plugin>
-            
-            <!-- macOS App Bundler - 可在Windows上打包macOS应用 -->
-            <plugin>
-                <groupId>com.googlecode.mavennatives</groupId>
-                <artifactId>maven-nativedependencies-plugin</artifactId>
-                <version>0.0.7</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.rt.batchfile_app.BatchfileAppApplication</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
