@@ -66,7 +66,6 @@ jobs:
           <jar>target\batchfile_app-0.0.1-SNAPSHOT.jar</jar>
           <outfile>target\dist\BatchRenameTool.exe</outfile>
           <errTitle>BatchRenameTool</errTitle>
-          <cmdLine>--add-modules=javafx.controls,javafx.fxml</cmdLine>
           <chdir>.</chdir>
           <priority>normal</priority>
           <downloadUrl>https://www.java.com/download/</downloadUrl>
@@ -79,10 +78,9 @@ jobs:
             <bundledJre64Bit>true</bundledJre64Bit>
             <bundledJreAsFallback>false</bundledJreAsFallback>
             <minVersion>17</minVersion>
-            <jdkPreference>jdkOnly</jdkPreference>
+            <jdkPreference>preferJre</jdkPreference>
             <runtimeBits>64</runtimeBits>
-            <opt>--module-path=lib</opt>
-            <opt>--add-modules=java.base,java.desktop,javafx.controls,javafx.fxml</opt>
+            <opt>-Djava.library.path=lib</opt>
           </jre>
         </launch4jConfig>
         '@ | Out-File -FilePath launch4j-config.xml -Encoding UTF8
@@ -97,11 +95,15 @@ jobs:
         $appName = "BatchRenameTool-Windows"
         New-Item -Path "$distDir\$appName" -ItemType Directory -Force
         
-        # 复制 JRE（只复制必要的文件，减小体积）
+        # 复制 JRE
         Copy-Item "$env:JRE_PATH" -Destination "$distDir\$appName\jre" -Recurse
         
-        # 复制 JavaFX SDK
-        Copy-Item "C:\javafx-sdk\lib" -Destination "$distDir\$appName\lib" -Recurse
+        # 复制所有 JavaFX 文件（包括 DLL）
+        Copy-Item "C:\javafx-sdk\lib\*" -Destination "$distDir\$appName\lib" -Recurse -Force
+        
+        # 列出 lib 目录内容，确认 DLL 存在
+        Write-Host "=== lib 目录内容 ==="
+        Get-ChildItem "$distDir\$appName\lib" -Recurse -Filter "*.dll" | Select-Object Name, Length
         
         # 复制 JAR 文件
         Copy-Item "target\batchfile_app-0.0.1-SNAPSHOT.jar" -Destination "$distDir\$appName\"
@@ -113,7 +115,7 @@ jobs:
         @'
         @echo off
         cd /d "%~dp0"
-        start jre\bin\javaw.exe --module-path=lib --add-modules=java.base,java.desktop,javafx.controls,javafx.fxml -jar batchfile_app-0.0.1-SNAPSHOT.jar
+        start jre\bin\javaw.exe -Djava.library.path=lib -jar batchfile_app-0.0.1-SNAPSHOT.jar
         '@ | Out-File -FilePath "$distDir\$appName\start.bat" -Encoding ASCII
         
         # 创建 README
