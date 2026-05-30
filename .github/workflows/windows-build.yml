@@ -41,55 +41,88 @@ jobs:
         Move-Item -Path "C:\javafx\javafx-sdk-17.0.2" -Destination "C:\javafx-sdk"
         echo "JAVAFX_PATH=C:\javafx-sdk\lib" >> $env:GITHUB_ENV
     
-    - name: Package as EXE
+    - name: Download Launch4j
       run: |
-        # 确认 JAR 文件存在
-        Get-ChildItem target\*.jar
+        curl -L https://github.com/TheBoegl/launch4j/releases/download/3.50/launch4j-3.50-win64.zip -o launch4j.zip
+        Expand-Archive -Path launch4j.zip -DestinationPath C:\launch4j
+    
+    - name: Package as EXE (Launch4j)
+      run: |
+        # 创建 Launch4j 配置文件
+        @'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <launch4jConfig>
+          <dontWrapJar>false</dontWrapJar>
+          <headerType>gui</headerType>
+          <jar>target\batchfile_app-0.0.1-SNAPSHOT.jar</jar>
+          <outfile>target\dist\BatchRenameTool.exe</outfile>
+          <errTitle>BatchRenameTool</errTitle>
+          <cmdLine>--add-modules=javafx.controls,javafx.fxml</cmdLine>
+          <chdir>.</chdir>
+          <priority>normal</priority>
+          <downloadUrl>https://www.java.com/download/</downloadUrl>
+          <supportUrl>https://github.com/zlm429/batchfile_new</supportUrl>
+          <customProcName>false</customProcName>
+          <stayAlive>false</stayAlive>
+          <icon></icon>
+          <jre>
+            <path></path>
+            <bundledJre64Bit>true</bundledJre64Bit>
+            <bundledJreAsFallback>false</bundledJreAsFallback>
+            <minVersion>17</minVersion>
+            <jdkPreference>jdkOnly</jdkPreference>
+            <runtimeBits>64</runtimeBits>
+            <opt>--module-path=C:\javafx-sdk\lib</opt>
+            <opt>--add-modules=java.base,java.desktop,javafx.controls,javafx.fxml</opt>
+          </jre>
+        </launch4jConfig>
+        '@ | Out-File -FilePath launch4j-config.xml -Encoding UTF8
         
-        jpackage --input target `
-                 --name "BatchRenameTool" `
-                 --main-jar batchfile_app-0.0.1-SNAPSHOT.jar `
-                 --main-class com.rt.batchfile_app.BatchfileAppApplication `
-                 --dest target/dist `
-                 --type exe `
-                 --app-version 1.0.0 `
-                 --vendor RT `
-                 --module-path $env:JAVAFX_PATH `
-                 --add-modules java.base,java.desktop,javafx.controls,javafx.fxml `
-                 --java-options "-Dfile.encoding=UTF-8" `
-                 --win-console
+        # 使用 Launch4j 打包
+        & "C:\launch4j\launch4j.exe" launch4j-config.xml
     
-    - name: Package as MSI
+    - name: Create EXE Distribution Package
       run: |
-        jpackage --input target `
-                 --name "BatchRenameTool" `
-                 --main-jar batchfile_app-0.0.1-SNAPSHOT.jar `
-                 --main-class com.rt.batchfile_app.BatchfileAppApplication `
-                 --dest target/dist `
-                 --type msi `
-                 --app-version 1.0.0 `
-                 --vendor RT `
-                 --module-path $env:JAVAFX_PATH `
-                 --add-modules java.base,java.desktop,javafx.controls,javafx.fxml `
-                 --java-options "-Dfile.encoding=UTF-8" `
-                 --win-dir-chooser `
-                 --win-menu `
-                 --win-shortcut
+        # 创建发布包（包含 JAR 和启动脚本）
+        $distDir = "target/dist"
+        New-Item -Path "$distDir\BatchRenameTool-Windows" -ItemType Directory -Force
+        
+        # 复制 JAR 文件
+        Copy-Item "target\batchfile_app-0.0.1-SNAPSHOT.jar" -Destination "$distDir\BatchRenameTool-Windows\"
+        
+        # 复制 Launch4j 生成的 EXE
+        Copy-Item "target\dist\BatchRenameTool.exe" -Destination "$distDir\BatchRenameTool-Windows\"
+        
+        # 创建启动脚本
+        @'
+        @echo off
+        cd /d "%~dp0"
+        start javaw --module-path="C:\javafx-sdk\lib" --add-modules=java.base,java.desktop,javafx.controls,javafx.fxml -jar batchfile_app-0.0.1-SNAPSHOT.jar
+        '@ | Out-File -FilePath "$distDir\BatchRenameTool-Windows\start.bat" -Encoding ASCII
+        
+        # 创建 README
+        @'
+        批量文件夹重命名工具 - Windows 版本
+        
+        使用方法：
+        1. 确保已安装 JDK 17 或更高版本
+        2. 双击 BatchRenameTool.exe 运行
+        3. 或者运行 start.bat 启动
+        
+        如遇到问题，请确保：
+        - 已安装 JDK 17+
+        - JavaFX SDK 在 C:\javafx-sdk 目录
+        '@ | Out-File -FilePath "$distDir\BatchRenameTool-Windows\README.txt" -Encoding UTF8
+        
+        # 压缩成 ZIP
+        Compress-Archive -Path "$distDir\BatchRenameTool-Windows\*" -DestinationPath "$distDir\BatchRenameTool-Windows.zip" -Force
     
-    - name: Upload EXE artifact
+    - name: Upload Windows Package
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: BatchRenameTool-Windows-EXE
-        path: target/dist/*.exe
-        retention-days: 30
-    
-    - name: Upload MSI artifact
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: BatchRenameTool-Windows-MSI
-        path: target/dist/*.msi
+        name: BatchRenameTool-Windows
+        path: target/dist/*.zip
         retention-days: 30
     
     - name: Create Release
@@ -97,8 +130,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          target/dist/*.exe
-          target/dist/*.msi
+          target/dist/*.zip
         tag_name: v${{ github.run_number }}
         name: Release v${{ github.run_number }}
         body: |
@@ -107,29 +139,18 @@ jobs:
           ### 功能特性
           - ✅ 批量重命名文件夹（支持 Excel 导入）
           - ✅ 批量重命名文件夹内的文件
-          - ✅ 自动分类文件到对应文件夹（新功能）
-          
-          ### 下载选项
-          - **EXE 版本**：免安装便携版
-          - **MSI 安装包**：标准 Windows 安装程序
+          - ✅ 自动分类文件到对应文件夹
           
           ### 安装说明
           
-          #### EXE 版本（推荐）
-          1. 下载 `.exe` 文件
-          2. 双击运行即可使用
-          3. 无需安装，自带 JRE 环境
-          
-          #### MSI 安装版本
-          1. 下载 `.msi` 文件
-          2. 双击运行安装程序
-          3. 按提示完成安装
-          4. 可从开始菜单启动
+          1. 下载 `BatchRenameTool-Windows.zip`
+          2. 解压到任意目录
+          3. 双击 `BatchRenameTool.exe` 运行
           
           ### 系统要求
           - Windows 10 或更高版本
-          - 无需安装 Java 环境（已内置 JRE）
-          - 至少 200MB 磁盘空间
+          - 需要安装 JDK 17 或更高版本
+          - 需要下载 JavaFX SDK 到 `C:\javafx-sdk`
         draft: false
         prerelease: false
       env:
