@@ -51,8 +51,9 @@ jobs:
                  --app-version 1.0.0 `
                  --vendor RT `
                  --module-path $env:JAVAFX_PATH `
-                 --add-modules javafx.controls,javafx.fxml `
+                 --add-modules java.base,java.desktop,javafx.controls,javafx.fxml `
                  --java-options "-Dfile.encoding=UTF-8" `
+                 --java-options "--add-modules=javafx.controls,javafx.fxml" `
                  --win-console
     
     - name: Package as MSI
@@ -66,8 +67,9 @@ jobs:
                  --app-version 1.0.0 `
                  --vendor RT `
                  --module-path $env:JAVAFX_PATH `
-                 --add-modules javafx.controls,javafx.fxml `
+                 --add-modules java.base,java.desktop,javafx.controls,javafx.fxml `
                  --java-options "-Dfile.encoding=UTF-8" `
+                 --java-options "--add-modules=javafx.controls,javafx.fxml" `
                  --win-dir-chooser `
                  --win-menu `
                  --win-shortcut
