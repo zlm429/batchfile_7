@@ -80,7 +80,6 @@ jobs:
             <minVersion>17</minVersion>
             <jdkPreference>preferJre</jdkPreference>
             <runtimeBits>64</runtimeBits>
-            <opt>-Djava.library.path=lib</opt>
           </jre>
         </launch4jConfig>
         '@ | Out-File -FilePath launch4j-config.xml -Encoding UTF8
@@ -115,7 +114,7 @@ jobs:
         @'
         @echo off
         cd /d "%~dp0"
-        start jre\bin\javaw.exe -Djava.library.path=lib -jar batchfile_app-0.0.1-SNAPSHOT.jar
+        start jre\bin\javaw.exe -jar batchfile_app-0.0.1-SNAPSHOT.jar
         '@ | Out-File -FilePath "$distDir\$appName\start.bat" -Encoding ASCII
         
         # 创建 README
