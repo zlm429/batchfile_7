@@ -46,6 +46,15 @@ jobs:
         curl -L https://github.com/TheBoegl/launch4j/releases/download/3.50/launch4j-3.50-win64.zip -o launch4j.zip
         Expand-Archive -Path launch4j.zip -DestinationPath C:\launch4j
     
+    - name: Download JRE 17
+      run: |
+        # 下载 Eclipse Temurin JRE 17
+        curl -L https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.9%2B9/OpenJDK17U-jre_x64_windows_hotspot_17.0.9_9.zip -o jre.zip
+        Expand-Archive -Path jre.zip -DestinationPath target/jre
+        # 重命名为更短的路径
+        Get-ChildItem target/jre -Directory | Select-Object -First 1 | Rename-Item -NewName "jdk-17"
+        echo "JRE_PATH=target/jre/jdk-17" >> $env:GITHUB_ENV
+    
     - name: Package as EXE (Launch4j)
       run: |
         # 创建 Launch4j 配置文件
@@ -66,13 +75,13 @@ jobs:
           <stayAlive>false</stayAlive>
           <icon></icon>
           <jre>
-            <path></path>
+            <path>jre</path>
             <bundledJre64Bit>true</bundledJre64Bit>
             <bundledJreAsFallback>false</bundledJreAsFallback>
             <minVersion>17</minVersion>
             <jdkPreference>jdkOnly</jdkPreference>
             <runtimeBits>64</runtimeBits>
-            <opt>--module-path=C:\javafx-sdk\lib</opt>
+            <opt>--module-path=lib</opt>
             <opt>--add-modules=java.base,java.desktop,javafx.controls,javafx.fxml</opt>
           </jre>
         </launch4jConfig>
@@ -83,39 +92,44 @@ jobs:
     
     - name: Create EXE Distribution Package
       run: |
-        # 创建发布包（包含 JAR 和启动脚本）
+        # 创建发布包（包含 JRE、JavaFX、JAR 和 EXE）
         $distDir = "target/dist"
-        New-Item -Path "$distDir\BatchRenameTool-Windows" -ItemType Directory -Force
+        $appName = "BatchRenameTool-Windows"
+        New-Item -Path "$distDir\$appName" -ItemType Directory -Force
+        
+        # 复制 JRE（只复制必要的文件，减小体积）
+        Copy-Item "$env:JRE_PATH" -Destination "$distDir\$appName\jre" -Recurse
+        
+        # 复制 JavaFX SDK
+        Copy-Item "C:\javafx-sdk\lib" -Destination "$distDir\$appName\lib" -Recurse
         
         # 复制 JAR 文件
-        Copy-Item "target\batchfile_app-0.0.1-SNAPSHOT.jar" -Destination "$distDir\BatchRenameTool-Windows\"
+        Copy-Item "target\batchfile_app-0.0.1-SNAPSHOT.jar" -Destination "$distDir\$appName\"
         
         # 复制 Launch4j 生成的 EXE
-        Copy-Item "target\dist\BatchRenameTool.exe" -Destination "$distDir\BatchRenameTool-Windows\"
+        Copy-Item "target\dist\BatchRenameTool.exe" -Destination "$distDir\$appName\"
         
         # 创建启动脚本
         @'
         @echo off
         cd /d "%~dp0"
-        start javaw --module-path="C:\javafx-sdk\lib" --add-modules=java.base,java.desktop,javafx.controls,javafx.fxml -jar batchfile_app-0.0.1-SNAPSHOT.jar
-        '@ | Out-File -FilePath "$distDir\BatchRenameTool-Windows\start.bat" -Encoding ASCII
+        start jre\bin\javaw.exe --module-path=lib --add-modules=java.base,java.desktop,javafx.controls,javafx.fxml -jar batchfile_app-0.0.1-SNAPSHOT.jar
+        '@ | Out-File -FilePath "$distDir\$appName\start.bat" -Encoding ASCII
         
         # 创建 README
         @'
         批量文件夹重命名工具 - Windows 版本
         
         使用方法：
-        1. 确保已安装 JDK 17 或更高版本
+        1. 解压到任意目录
         2. 双击 BatchRenameTool.exe 运行
         3. 或者运行 start.bat 启动
         
-        如遇到问题，请确保：
-        - 已安装 JDK 17+
-        - JavaFX SDK 在 C:\javafx-sdk 目录
-        '@ | Out-File -FilePath "$distDir\BatchRenameTool-Windows\README.txt" -Encoding UTF8
+        注意：本版本自带 JRE 和 JavaFX，无需额外安装！
+        '@ | Out-File -FilePath "$distDir\$appName\README.txt" -Encoding UTF8
         
         # 压缩成 ZIP
-        Compress-Archive -Path "$distDir\BatchRenameTool-Windows\*" -DestinationPath "$distDir\BatchRenameTool-Windows.zip" -Force
+        Compress-Archive -Path "$distDir\$appName\*" -DestinationPath "$distDir\BatchRenameTool-Windows.zip" -Force
     
     - name: Upload Windows Package
       if: always()
@@ -149,8 +163,8 @@ jobs:
           
           ### 系统要求
           - Windows 10 或更高版本
-          - 需要安装 JDK 17 或更高版本
-          - 需要下载 JavaFX SDK 到 `C:\javafx-sdk`
+          - **无需安装 Java 环境**（已内置 JRE 17 和 JavaFX）
+          - 约 200MB 磁盘空间
         draft: false
         prerelease: false
       env:
