@@ -43,8 +43,38 @@ jobs:
     
     - name: Download Launch4j
       run: |
-        curl -L https://github.com/TheBoegl/launch4j/releases/download/3.50/launch4j-3.50-win64.zip -o launch4j.zip
-        Expand-Archive -Path launch4j.zip -DestinationPath C:\launch4j
+        # 尝试多个下载源
+        $urls = @(
+          "https://sourceforge.net/projects/launch4j/files/launch4j-3/3.50/launch4j-3.50-win64.zip/download",
+          "https://github.com/TheBoegl/launch4j/releases/download/3.50/launch4j-3.50-win64.zip"
+        )
+        
+        foreach ($url in $urls) {
+          Write-Host "尝试下载: $url"
+          try {
+            curl -L -f "$url" -o launch4j.zip
+            if (Test-Path launch4j.zip -and (Get-Item launch4j.zip).Length -gt 0) {
+              Write-Host "下载成功"
+              break
+            }
+          } catch {
+            Write-Host "下载失败，尝试下一个源"
+          }
+        }
+        
+        if (-not (Test-Path launch4j.zip)) {
+          throw "所有下载源都失败"
+        }
+        
+        Expand-Archive -Path launch4j.zip -DestinationPath C:\launch4j -Force
+        
+        # 验证安装
+        if (Test-Path "C:\launch4j\launch4j.exe") {
+          Write-Host "Launch4j 安装成功"
+        } else {
+          Get-ChildItem "C:\launch4j" -Recurse | Select-Object FullName
+          throw "Launch4j 可执行文件未找到"
+        }
     
     - name: Download JRE 17
       run: |
