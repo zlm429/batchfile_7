@@ -46,15 +46,38 @@ jobs:
         # 使用 Chocolatey 安装 Launch4j
         choco install launch4j -y --no-progress
         
-        # 查找 Launch4j 安装路径
-        $launch4jPath = Get-ChildItem "C:\ProgramData\chocolatey\lib\launch4j" -Recurse -Filter "launch4j.exe" | Select-Object -First 1 -ExpandProperty Directory
+        # 查找 Launch4j 安装路径（兼容不同版本）
+        Write-Host "正在查找 Launch4j 安装路径..."
+        $launch4jDirs = Get-ChildItem "C:\ProgramData\chocolatey\lib\launch4j" -Recurse -Directory | Where-Object { $_.Name -match "launch4j-" }
         
-        if ($launch4jPath) {
-          Copy-Item "$launch4jPath\*" -Destination "C:\launch4j" -Recurse -Force
-          Write-Host "Launch4j 安装成功，路径: $launch4jPath"
-          Write-Host "Launch4j 可执行文件: C:\launch4j\launch4j.exe"
+        if ($launch4jDirs) {
+          $launch4jDir = $launch4jDirs[0].FullName
+          Write-Host "找到 Launch4j 目录: $launch4jDir"
+          
+          # 复制整个目录到 C:\launch4j
+          Copy-Item "$launch4jDir\*" -Destination "C:\launch4j" -Recurse -Force
+          
+          # 验证 launch4j.exe 是否存在
+          if (Test-Path "C:\launch4j\launch4j.exe") {
+            Write-Host "Launch4j 安装成功！"
+            Write-Host "可执行文件: C:\launch4j\launch4j.exe"
+          } else {
+            # 尝试在子目录中查找
+            $exeFile = Get-ChildItem "C:\launch4j" -Recurse -Filter "launch4j.exe" | Select-Object -First 1
+            if ($exeFile) {
+              Write-Host "在子目录中找到: $($exeFile.FullName)"
+              Copy-Item $exeFile.Directory.FullName\* -Destination "C:\launch4j" -Recurse -Force
+              Write-Host "Launch4j 安装成功！"
+            } else {
+              Write-Host "C:\launch4j 目录内容:"
+              Get-ChildItem "C:\launch4j" -Recurse | Select-Object FullName
+              throw "Launch4j 安装失败，未找到可执行文件"
+            }
+          }
         } else {
-          throw "Launch4j 安装失败，未找到可执行文件"
+          Write-Host "Chocolatey lib 目录内容:"
+          Get-ChildItem "C:\ProgramData\chocolatey\lib\launch4j" -Recurse | Select-Object FullName -First 20
+          throw "Launch4j 安装失败，未找到安装目录"
         }
     
     - name: Download JRE 17
