@@ -46,39 +46,32 @@ jobs:
         # 使用 Chocolatey 安装 Launch4j
         choco install launch4j -y --no-progress
         
+        # 确保 C:\launch4j 是目录
+        if (Test-Path "C:\launch4j") {
+          Remove-Item "C:\launch4j" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        New-Item -Path "C:\launch4j" -ItemType Directory -Force | Out-Null
+        
         # 查找 Launch4j 安装路径（多种可能的位置）
         Write-Host "正在查找 Launch4j 安装路径..."
+        $found = $false
         
-        # 方法1：检查 Chocolatey bin 目录（shim）
-        if (Test-Path "C:\ProgramData\chocolatey\bin\launch4j.exe") {
-          Write-Host "找到 Chocolatey shim: C:\ProgramData\chocolatey\bin\launch4j.exe"
-          # 直接使用 shim 或者找到实际路径
-          $actualPath = Get-Content "C:\ProgramData\chocolatey\bin\launch4j.exe" -Encoding UTF8 | Select-String "launch4j" | Select-Object -First 1
-          if ($actualPath) {
-            Write-Host "实际路径: $actualPath"
-          }
-          # 复制整个 bin 目录到 C:\launch4j
-          Copy-Item "C:\ProgramData\chocolatey\bin\*" -Destination "C:\launch4j" -Force
-          Copy-Item "C:\ProgramData\chocolatey\lib\launch4j\*" -Destination "C:\launch4j" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        
-        # 方法2：查找 Program Files 中的安装目录
-        if (-not (Test-Path "C:\launch4j\launch4j.exe")) {
-          $programFilesPaths = @(
-            "C:\Program Files\Launch4j",
-            "C:\Program Files (x86)\Launch4j"
-          )
-          foreach ($path in $programFilesPaths) {
-            if (Test-Path "$path\launch4j.exe") {
-              Write-Host "找到 Program Files 安装: $path"
-              Copy-Item "$path\*" -Destination "C:\launch4j" -Recurse -Force
-              break
-            }
+        # 方法1：查找 Program Files 中的安装目录（优先）
+        $programFilesPaths = @(
+          "C:\Program Files\Launch4j",
+          "C:\Program Files (x86)\Launch4j"
+        )
+        foreach ($path in $programFilesPaths) {
+          if (Test-Path "$path\launch4j.exe") {
+            Write-Host "找到 Program Files 安装: $path"
+            Copy-Item "$path\*" -Destination "C:\launch4j" -Recurse -Force
+            $found = $true
+            break
           }
         }
         
-        # 方法3：在 Chocolatey lib 中深度搜索
-        if (-not (Test-Path "C:\launch4j\launch4j.exe")) {
+        # 方法2：在 Chocolatey lib 中搜索
+        if (-not $found) {
           Write-Host "Chocolatey lib 目录结构:"
           Get-ChildItem "C:\ProgramData\chocolatey\lib\launch4j" -Recurse | Select-Object FullName -First 30
           
@@ -87,6 +80,17 @@ jobs:
             Write-Host "找到 launch4j.exe: $($allExeFiles[0].FullName)"
             $exeDir = $allExeFiles[0].Directory.FullName
             Copy-Item "$exeDir\*" -Destination "C:\launch4j" -Recurse -Force
+            $found = $true
+          }
+        }
+        
+        # 方法3：检查 Chocolatey bin 目录（shim）
+        if (-not $found) {
+          if (Test-Path "C:\ProgramData\chocolatey\bin\launch4j.exe") {
+            Write-Host "找到 Chocolatey shim: C:\ProgramData\chocolatey\bin\launch4j.exe"
+            # 复制整个 lib 目录
+            Copy-Item "C:\ProgramData\chocolatey\lib\launch4j\*" -Destination "C:\launch4j" -Recurse -Force -ErrorAction SilentlyContinue
+            $found = $true
           }
         }
         
