@@ -4,8 +4,9 @@ on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
-  pull_request:
-    branches: [ main ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-windows:
@@ -13,16 +14,16 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     
     - name: Set up JDK 17
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v5
       with:
         java-version: '17'
         distribution: 'temurin'
     
     - name: Cache Maven packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.m2
         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
@@ -42,6 +43,9 @@ jobs:
     
     - name: Package as EXE
       run: |
+        # 确认 JAR 文件存在
+        Get-ChildItem target\*.jar
+        
         jpackage --input target `
                  --name "BatchRenameTool" `
                  --main-jar batchfile_app-0.0.1-SNAPSHOT.jar `
@@ -53,7 +57,6 @@ jobs:
                  --module-path $env:JAVAFX_PATH `
                  --add-modules java.base,java.desktop,javafx.controls,javafx.fxml `
                  --java-options "-Dfile.encoding=UTF-8" `
-                 --java-options "--add-modules=javafx.controls,javafx.fxml" `
                  --win-console
     
     - name: Package as MSI
@@ -69,7 +72,6 @@ jobs:
                  --module-path $env:JAVAFX_PATH `
                  --add-modules java.base,java.desktop,javafx.controls,javafx.fxml `
                  --java-options "-Dfile.encoding=UTF-8" `
-                 --java-options "--add-modules=javafx.controls,javafx.fxml" `
                  --win-dir-chooser `
                  --win-menu `
                  --win-shortcut
