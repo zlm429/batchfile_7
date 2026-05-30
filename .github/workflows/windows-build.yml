@@ -46,24 +46,42 @@ jobs:
         # 使用 Chocolatey 安装 Launch4j
         choco install launch4j -y --no-progress
         
-        # 验证安装
-        if (Test-Path "C:\ProgramData\chocolatey\lib\launch4j\tools\launch4j-3.50\launch4j.exe") {
-          Copy-Item "C:\ProgramData\chocolatey\lib\launch4j\tools\launch4j-3.50\*" -Destination "C:\launch4j" -Recurse -Force
-          Write-Host "Launch4j 通过 Chocolatey 安装成功"
+        # 查找 Launch4j 安装路径
+        $launch4jPath = Get-ChildItem "C:\ProgramData\chocolatey\lib\launch4j" -Recurse -Filter "launch4j.exe" | Select-Object -First 1 -ExpandProperty Directory
+        
+        if ($launch4jPath) {
+          Copy-Item "$launch4jPath\*" -Destination "C:\launch4j" -Recurse -Force
+          Write-Host "Launch4j 安装成功，路径: $launch4jPath"
+          echo "LAUNCH4J_PATH=C:\launch4j\launch4j.exe" >> $env:GITHUB_ENV
         } else {
-          # 备选方案：使用 Maven 插件
-          Write-Host "Chocolatey 安装失败，使用 Maven Launch4j Plugin"
+          Write-Host "Chocolatey 安装路径未找到，使用 Maven Launch4j Plugin"
           echo "USE_MAVEN_PLUGIN=true" >> $env:GITHUB_ENV
         }
     
     - name: Download JRE 17
       run: |
-        # 下载 Eclipse Temurin JRE 17
-        curl -L https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.9%2B9/OpenJDK17U-jre_x64_windows_hotspot_17.0.9_9.zip -o jre.zip
-        Expand-Archive -Path jre.zip -DestinationPath target/jre
+        # 下载 Eclipse Temurin JRE 17（使用更稳定的链接）
+        $jreUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jre_x64_windows_hotspot_17.0.13_11.zip"
+        
+        Write-Host "开始下载 JRE 17..."
+        curl -L -f "$jreUrl" -o jre.zip
+        
+        if (-not (Test-Path jre.zip)) {
+          throw "JRE 下载失败"
+        }
+        
+        Write-Host "解压 JRE..."
+        Expand-Archive -Path jre.zip -DestinationPath target/jre -Force
+        
         # 重命名为更短的路径
-        Get-ChildItem target/jre -Directory | Select-Object -First 1 | Rename-Item -NewName "jdk-17"
-        echo "JRE_PATH=target/jre/jdk-17" >> $env:GITHUB_ENV
+        $jreDir = Get-ChildItem target/jre -Directory | Select-Object -First 1
+        if ($jreDir) {
+          Rename-Item -Path $jreDir.FullName -NewName "jdk-17"
+          echo "JRE_PATH=target/jre/jdk-17" >> $env:GITHUB_ENV
+          Write-Host "JRE 安装成功: target/jre/jdk-17"
+        } else {
+          throw "JRE 解压后未找到目录"
+        }
     
     - name: Package as EXE (Launch4j)
       if: env.USE_MAVEN_PLUGIN != 'true'
