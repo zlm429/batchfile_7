@@ -43,37 +43,17 @@ jobs:
     
     - name: Download Launch4j
       run: |
-        # 尝试多个下载源
-        $urls = @(
-          "https://sourceforge.net/projects/launch4j/files/launch4j-3/3.50/launch4j-3.50-win64.zip/download",
-          "https://github.com/TheBoegl/launch4j/releases/download/3.50/launch4j-3.50-win64.zip"
-        )
-        
-        foreach ($url in $urls) {
-          Write-Host "尝试下载: $url"
-          try {
-            curl -L -f "$url" -o launch4j.zip
-            if (Test-Path launch4j.zip -and (Get-Item launch4j.zip).Length -gt 0) {
-              Write-Host "下载成功"
-              break
-            }
-          } catch {
-            Write-Host "下载失败，尝试下一个源"
-          }
-        }
-        
-        if (-not (Test-Path launch4j.zip)) {
-          throw "所有下载源都失败"
-        }
-        
-        Expand-Archive -Path launch4j.zip -DestinationPath C:\launch4j -Force
+        # 使用 Chocolatey 安装 Launch4j
+        choco install launch4j -y --no-progress
         
         # 验证安装
-        if (Test-Path "C:\launch4j\launch4j.exe") {
-          Write-Host "Launch4j 安装成功"
+        if (Test-Path "C:\ProgramData\chocolatey\lib\launch4j\tools\launch4j-3.50\launch4j.exe") {
+          Copy-Item "C:\ProgramData\chocolatey\lib\launch4j\tools\launch4j-3.50\*" -Destination "C:\launch4j" -Recurse -Force
+          Write-Host "Launch4j 通过 Chocolatey 安装成功"
         } else {
-          Get-ChildItem "C:\launch4j" -Recurse | Select-Object FullName
-          throw "Launch4j 可执行文件未找到"
+          # 备选方案：使用 Maven 插件
+          Write-Host "Chocolatey 安装失败，使用 Maven Launch4j Plugin"
+          echo "USE_MAVEN_PLUGIN=true" >> $env:GITHUB_ENV
         }
     
     - name: Download JRE 17
@@ -86,6 +66,7 @@ jobs:
         echo "JRE_PATH=target/jre/jdk-17" >> $env:GITHUB_ENV
     
     - name: Package as EXE (Launch4j)
+      if: env.USE_MAVEN_PLUGIN != 'true'
       run: |
         # 创建 Launch4j 配置文件
         @'
@@ -116,6 +97,53 @@ jobs:
         
         # 使用 Launch4j 打包
         & "C:\launch4j\launch4j.exe" launch4j-config.xml
+    
+    - name: Package as EXE (Maven Plugin)
+      if: env.USE_MAVEN_PLUGIN == 'true'
+      run: |
+        # 添加 Maven Launch4j Plugin 到 pom.xml
+        @"
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>launch4j-maven-plugin</artifactId>
+            <version>2.1.1</version>
+            <executions>
+                <execution>
+                    <id>l4j-clr</id>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>launch4j</goal>
+                    </goals>
+                    <configuration>
+                        <headerType>gui</headerType>
+                        <outfile>target/dist/BatchRenameTool.exe</outfile>
+                        <jar>target/batchfile_app-0.0.1-SNAPSHOT.jar</jar>
+                        <errTitle>BatchRenameTool</errTitle>
+                        <classPath>
+                            <mainClass>com.rt.batchfile_app.BatchfileAppApplication</mainClass>
+                        </classPath>
+                        <jre>
+                            <path>jre</path>
+                            <minVersion>17</minVersion>
+                        </jre>
+                        <versionInfo>
+                            <fileVersion>1.0.0.0</fileVersion>
+                            <txtFileVersion>1.0.0</txtFileVersion>
+                            <fileDescription>Batch Rename Tool</fileDescription>
+                            <productVersion>1.0.0.0</productVersion>
+                            <txtProductVersion>1.0.0</txtProductVersion>
+                            <productName>BatchRenameTool</productName>
+                            <internalName>BatchRenameTool</internalName>
+                            <originalFilename>BatchRenameTool.exe</originalFilename>
+                        </versionInfo>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+        "@ | Out-File -FilePath l4j-plugin.xml -Encoding UTF8
+        
+        # 使用 Maven 打包
+        .\mvnw.cmd launch4j:launch4j -Dlaunch4j.configFile=l4j-plugin.xml
     
     - name: Create EXE Distribution Package
       run: |
