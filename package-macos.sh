@@ -78,8 +78,9 @@ jpackage --input target \
          --app-version 1.0.0 \
          --vendor RT \
          --module-path "$JAVAFX_PATH" \
-         --add-modules javafx.controls,javafx.fxml \
-         --java-options "-Dfile.encoding=UTF-8"
+         --add-modules java.base,java.desktop,java.xml,java.sql,jdk.unsupported,javafx.controls,javafx.fxml,javafx.base,javafx.graphics \
+         --java-options "-Dfile.encoding=UTF-8" \
+         --java-options "-Dprism.allowhidpi=false"
 
 if [ $? -ne 0 ]; then
     echo "❌ 打包失败"

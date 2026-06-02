@@ -25,22 +25,9 @@ jobs:
 
       - name: Download JavaFX SDK
         run: |
-          curl -L https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_windows-x64_bin-sdk.zip -o javafx.zip
+          Invoke-WebRequest -Uri "https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_windows-x64_bin-sdk.zip" -OutFile "javafx.zip"
           Expand-Archive -Path javafx.zip -DestinationPath C:\javafx
           Move-Item -Path "C:\javafx\javafx-sdk-17.0.2" -Destination "C:\javafx-sdk"
-        shell: powershell
-
-      - name: Install Launch4j via Chocolatey
-        run: |
-          choco install launch4j -y --no-progress
-          
-          New-Item -Path "C:\launch4j" -ItemType Directory -Force
-          $exe = Get-ChildItem "C:\Program Files (x86)\Launch4j" -Recurse -Filter "launch4j.exe" | Select-Object -First 1
-
-          if (-not $exe) { throw " 找不到 launch4j.exe" }
-          Copy-Item -Path "$($exe.Directory.FullName)\*" -Destination "C:\launch4j\" -Recurse -Force
-
-          if (-not (Test-Path "C:\launch4j\launch4j.exe")) { throw " Launch4j 复制失败" }
         shell: powershell
 
       - name: Download JRE 17 (Temurin)
@@ -49,91 +36,85 @@ jobs:
           Expand-Archive -Path "jre17.zip" -DestinationPath "target\jre" -Force
         shell: powershell
 
-      - name: Package EXE with Launch4j
+      - name: Create Custom JRE with jlink
         run: |
-          # 创建 Launch4j 配置文件
-          @'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <launch4jConfig>
-            <dontWrapJar>false</dontWrapJar>
-            <headerType>gui</headerType>
-            <jar>target\batchfile_app-0.0.1-SNAPSHOT.jar</jar>
-            <outfile>target\dist\BatchRenameTool.exe</outfile>
-            <errTitle>BatchRenameTool</errTitle>
-            <chdir>.</chdir>
-            <priority>normal</priority>
-            <downloadUrl>https://www.java.com/download/</downloadUrl>
-            <supportUrl>https://github.com/zlm429/batchfile_new</supportUrl>
-            <customProcName>false</customProcName>
-            <stayAlive>false</stayAlive>
-            <icon></icon>
-            <jre>
-              <path>jre</path>
-              <bundledJre64Bit>true</bundledJre64Bit>
-              <bundledJreAsFallback>false</bundledJreAsFallback>
-              <minVersion>17</minVersion>
-              <jdkPreference>preferJre</jdkPreference>
-              <runtimeBits>64</runtimeBits>
-            </jre>
-          </launch4jConfig>
-          '@ | Out-File -FilePath launch4j-config.xml -Encoding UTF8
-
-          Write-Host "=== Debug Paths ==="
-          Write-Host "Launch4j: C:\launch4j\launch4j.exe"
-          Write-Host "Config:   launch4j-config.xml"
-          Write-Host "JAR:       target\batchfile_app-0.0.1-SNAPSHOT.jar"
-          Write-Host "Out EXE:   target\dist\BatchRenameTool.exe"
-
-          if (-not (Test-Path "C:\launch4j\launch4j.exe")) { throw "launch4j.exe missing" }
-          if (-not (Test-Path "launch4j-config.xml")) { throw "config.xml missing" }
-          if (-not (Test-Path "target\batchfile_app-0.0.1-SNAPSHOT.jar")) { throw "JAR missing" }
-
-          New-Item -Path "target\dist" -ItemType Directory -Force | Out-Null
-
-          & "C:\launch4j\launch4j.exe" launch4j-config.xml 2>&1
-          $e = $LASTEXITCODE
-          Write-Host "Launch4j exit code = $e"
-
-          if (-not (Test-Path "target\dist\BatchRenameTool.exe")) {
-            throw "EXE not generated, exit code $e"
-          }
-        shell: powershell
-
-      - name: Bundle JRE with EXE
-        run: |
-          $jreDir = Get-ChildItem "target\jre" -Directory | Select-Object -First 1
-          if (-not $jreDir) { throw "JRE directory not found" }
+          Write-Host "Creating custom JRE with jlink..."
+          $jdkHome = $env:JAVA_HOME
+          $jlinkPath = Join-Path $jdkHome "bin\jlink.exe"
           
-          Copy-Item -Recurse "$($jreDir.FullName)" "target\dist\jre" -Force
+          # Create custom JRE with all required modules
+          & $jlinkPath `
+            --add-modules java.base,java.desktop,java.xml,java.sql,java.naming,java.management,java.logging,java.scripting,jdk.unsupported `
+            --output "target\custom-jre" `
+            --compress=2 `
+            --no-header-files `
+            --no-man-pages
+          
+          Write-Host "Custom JRE created!"
+          Get-ChildItem "target\custom-jre" -Recurse | Measure-Object -Property Length -Sum | Select-Object Count, @{Name="Size(MB)";Expression={[math]::Round($_.Sum/1MB,2)}}
         shell: powershell
 
       - name: Create Distribution Package
         run: |
           New-Item -Path "target\dist\BatchRenameTool-Windows" -ItemType Directory -Force
           
-          # 复制 JRE
-          Copy-Item -Recurse "target\dist\jre" "target\dist\BatchRenameTool-Windows\jre" -Force
+          # Copy custom JRE
+          New-Item -Path "target\dist\BatchRenameTool-Windows\jre" -ItemType Directory -Force
+          Copy-Item -Recurse "target\custom-jre\*" "target\dist\BatchRenameTool-Windows\jre" -Force
           
-          # 复制 JavaFX SDK
-          Copy-Item -Recurse "C:\javafx-sdk\lib" "target\dist\BatchRenameTool-Windows\lib" -Force
+          # Create lib directory
+          New-Item -Path "target\dist\BatchRenameTool-Windows\lib" -ItemType Directory -Force
           
-          # 复制 JAR 和 EXE
+          # Copy JAR
           Copy-Item "target\batchfile_app-0.0.1-SNAPSHOT.jar" "target\dist\BatchRenameTool-Windows\"
-          Copy-Item "target\dist\BatchRenameTool.exe" "target\dist\BatchRenameTool-Windows\"
           
-          # 创建 README
+          # Copy JavaFX SDK (JAR + native DLL)
+          Copy-Item -Recurse "C:\javafx-sdk\lib\*.jar" "target\dist\BatchRenameTool-Windows\lib\" -Force
+          Copy-Item -Recurse "C:\javafx-sdk\bin\*.dll" "target\dist\BatchRenameTool-Windows\lib\" -Force
+          
+          # Create launcher batch file
           @'
-          批量文件夹重命名工具 - Windows 版本
+          @echo off
+          cd /d "%~dp0"
+          start /min "" cmd /c "jre\bin\javaw.exe -jar batchfile_app-0.0.1-SNAPSHOT.jar"
+          exit
+          '@ | Out-File -FilePath "target\dist\BatchRenameTool-Windows\BatchRenameTool.bat" -Encoding ASCII
           
-          使用方法：
-          1. 解压到任意目录
-          2. 双击 BatchRenameTool.exe 运行
+          # Create startup script with error display
+          @'
+          @echo off
+          cd /d "%~dp0"
+          echo Starting BatchRenameTool...
+          echo.
+          set JAVAFX_PATH=%~dp0lib
+          jre\bin\java.exe ^
+            --module-path "%JAVAFX_PATH%" ^
+            --add-modules java.base,java.desktop,java.xml,java.sql,jdk.unsupported,javafx.controls,javafx.fxml ^
+            -Djava.library.path="%JAVAFX_PATH%" ^
+            -jar batchfile_app-0.0.1-SNAPSHOT.jar
+          if errorlevel 1 (
+            echo.
+            echo Error occurred! Press any key to exit...
+            pause >nul
+          )
+          '@ | Out-File -FilePath "target\dist\BatchRenameTool-Windows\start.bat" -Encoding ASCII
           
-          注意：本版本自带 JRE 和 JavaFX，无需额外安装！
+          # Create README
+          @'
+          Batch Rename Tool - Windows Version
+          
+          Usage:
+          1. Extract to any directory
+          2. Double-click BatchRenameTool.bat to run
+          
+          Note: This version includes JRE and JavaFX, no additional installation required!
           '@ | Out-File -FilePath "target\dist\BatchRenameTool-Windows\README.txt" -Encoding UTF8
           
-          # 压缩
+          # Compress
           Compress-Archive -Path "target\dist\BatchRenameTool-Windows\*" -DestinationPath "target\dist\BatchRenameTool-Windows.zip" -Force
+          
+          Write-Host "Package created successfully!"
+          Get-Item "target\dist\BatchRenameTool-Windows.zip" | Select-Object Name, Length
         shell: powershell
 
       - name: Upload artifact
@@ -151,23 +132,23 @@ jobs:
           tag_name: v${{ github.run_number }}
           name: Release v${{ github.run_number }}
           body: |
-            ## 批量文件夹重命名工具 - Windows 版本
+            ## Batch Rename Tool - Windows Version
             
-            ### 功能特性
-            - ✅ 批量重命名文件夹（支持 Excel 导入）
-            - ✅ 批量重命名文件夹内的文件
-            - ✅ 自动分类文件到对应文件夹
+            ### Features
+            - ✅ Batch rename folders (Excel import supported)
+            - ✅ Batch rename files in folders
+            - ✅ Auto classify files into folders
             
-            ### 安装说明
+            ### Installation
             
-            1. 下载 `BatchRenameTool-Windows.zip`
-            2. 解压到任意目录
-            3. 双击 `BatchRenameTool.exe` 运行
+            1. Download `BatchRenameTool-Windows.zip`
+            2. Extract to any directory
+            3. Double-click `BatchRenameTool.bat` to run
             
-            ### 系统要求
-            - Windows 10 或更高版本
-            - **无需安装 Java 环境**（已内置 JRE 17 和 JavaFX）
-            - 约 200MB 磁盘空间
+            ### System Requirements
+            - Windows 10 or higher
+            - **No Java installation required** (JRE 17 and JavaFX included)
+            - ~200MB disk space
           draft: false
           prerelease: false
         env:

@@ -13,88 +13,93 @@ jobs:
     runs-on: macos-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-    
-    - name: Set up JDK 17
-      uses: actions/setup-java@v5
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-    
-    - name: Set Intel JavaFX SDK
-      run: |
-        echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip" >> $GITHUB_ENV
-        echo "PLATFORM_NAME=Intel" >> $GITHUB_ENV
-    
-    - name: Cache Maven
-      uses: actions/cache@v4.2.0
-      with:
-        path: ~/.m2
-        key: intel-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          intel-maven-
-    
-    - name: Build with Maven
-      run: |
-        chmod +x mvnw
-        ./mvnw clean package -DskipTests
-    
-    - name: Download JavaFX
-      run: |
-        curl -L ${{ env.JAVAFX_URL }} -o javafx.zip
-        unzip -q javafx.zip -d /tmp/
-        mv /tmp/javafx-sdk-17.0.2 /tmp/javafx-sdk
-        echo "JAVAFX_PATH=/tmp/javafx-sdk/lib" >> $GITHUB_ENV
-    
-    - name: Package DMG (Intel)
-      run: |
-        export TMPDIR=/tmp/jpkg
-        mkdir -p $TMPDIR
-        
-        rm -rf target/dist
-        mkdir -p target/dist
-        jpackage --input target \
-                 --name "BatchRenameTool" \
-                 --main-jar batchfile_app-0.0.1-SNAPSHOT.jar \
-                 --main-class com.rt.batchfile_app.BatchfileAppApplication \
-                 --dest target/dist \
-                 --type dmg \
-                 --app-version 1.0.0 \
-                 --vendor RT \
-                 --mac-package-identifier com.rt.batchtool \
-                 --module-path ${{ env.JAVAFX_PATH }} \
-                 --add-modules javafx.controls,javafx.fxml \
-                 --java-options "-Dfile.encoding=UTF-8"
-    
-    - name: Upload DMG
-      if: always()
-      uses: actions/upload-artifact@v4.4.3
-      with:
-        name: BatchRenameTool-macOS-Intel
-        path: target/dist/*.dmg
-        retention-days: 30
-    
-    - name: Create Release
-      if: github.event_name == 'push' && success()
-      uses: softprops/action-gh-release@v2
-      with:
-        files: target/dist/*.dmg
-        tag_name: v${{ github.run_number }}
-        name: Release v${{ github.run_number }}
-        body: |
-          ## 批量文件夹重命名工具 - macOS Intel 版本
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set Intel JavaFX SDK
+        run: |
+          echo "JAVAFX_URL=https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip" >> $GITHUB_ENV
+          echo "PLATFORM_NAME=Intel" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Cache Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: macos-intel-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            macos-intel-maven-
+
+      - name: Build with Maven
+        run: |
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests
+        shell: bash
+
+      - name: Download JavaFX
+        run: |
+          curl -L ${{ env.JAVAFX_URL }} -o javafx.zip
+          unzip -q javafx.zip -d /tmp/
+          mv /tmp/javafx-sdk-17.0.2 /tmp/javafx-sdk
+          echo "JAVAFX_PATH=/tmp/javafx-sdk/lib" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Package DMG (Intel)
+        run: |
+          export TMPDIR=/tmp/jpkg
+          mkdir -p $TMPDIR
           
-          ### 功能特性
-          - ✅ 批量重命名文件夹（支持 Excel 导入）
-          - ✅ 批量重命名文件夹内的文件
-          - ✅ 自动分类文件到对应文件夹（新功能）
-          
-          ### 系统要求
-          - macOS 10.14 或更高版本
-          - Intel 处理器 Mac
-          - 无需安装 Java 环境（已内置 JRE）
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          rm -rf target/dist
+          mkdir -p target/dist
+          jpackage --input target \
+                   --name "BatchRenameTool" \
+                   --main-jar batchfile_app-0.0.1-SNAPSHOT.jar \
+                   --main-class com.rt.batchfile_app.BatchfileAppApplication \
+                   --dest target/dist \
+                   --type dmg \
+                   --app-version 1.0.0 \
+                   --vendor RT \
+                   --mac-package-identifier com.rt.batchtool \
+                   --module-path ${{ env.JAVAFX_PATH }} \
+                   --add-modules java.base,java.desktop,java.xml,java.sql,jdk.unsupported,javafx.controls,javafx.fxml,javafx.base,javafx.graphics \
+                   --java-options "-Dfile.encoding=UTF-8" \
+                   --java-options "-Dprism.allowhidpi=false"
+        shell: bash
+
+      - name: Upload DMG
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BatchRenameTool-macOS-Intel
+          path: target/dist/*.dmg
+          retention-days: 30
+
+      - name: Create Release
+        if: github.event_name == 'push' && success()
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/dist/*.dmg
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            ## 批量文件夹重命名工具 - macOS Intel 版本
+            
+            ### 功能特性
+            - ✅ 批量重命名文件夹（支持 Excel 导入）
+            - ✅ 批量重命名文件夹内的文件
+            - ✅ 自动分类文件到对应文件夹
+            
+            ### 系统要求
+            - macOS 10.14 或更高版本
+            - Intel 处理器 Mac
+            - 无需安装 Java 环境（已内置 JRE）
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
