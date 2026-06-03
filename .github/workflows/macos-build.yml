@@ -47,7 +47,7 @@ jobs:
             --mac-package-identifier com.rt.batchtool \
             --module-path "${{ env.JAVAFX_PATH }}" \
             --add-modules java.base,java.desktop,java.xml,jdk.unsupported,javafx.base,javafx.controls,javafx.fxml,javafx.graphics \
-            --java-options "-Dfile.encoding=UTF-8" \
+            --java-options "-Dfile.encoding=UTF-8 -Dprism.order=sw -Dprism.text=t2k" \
             --verbose
 
       - name: Upload DMG
