@@ -1,12 +1,14 @@
 name: macOS Build and Package (Intel x64)
+
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch
+  workflow_dispatch:
 
 jobs:
   build-macos-intel:
-    runs-on: macos-13
+    runs-on: macos-13      # ✅ 唯一正确的 Intel 打包机
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,18 +19,18 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Download Intel专属JavaFX17
+      - name: Download JavaFX for Intel Mac
         run: |
           curl -L https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip -o javafx.zip
           unzip -q javafx.zip -d /tmp/
           echo "JAVAFX_PATH=/tmp/javafx-sdk-17.0.2/lib" >> $GITHUB_ENV
 
-      - name: Maven编译打包
+      - name: Build with Maven
         run: |
           chmod +x mvnw
           ./mvnw clean package -DskipTests
 
-      - name: jpackage打包DMG
+      - name: Package DMG (Intel)
         run: |
           mkdir -p target/dist
           jpackage --input target \
@@ -40,14 +42,40 @@ jobs:
             --app-version 1.0.0 \
             --vendor "RT" \
             --mac-package-identifier com.rt.batchtool \
-            --module-path $JAVAFX_PATH \
-            # 补齐全部必需模块：jdk.unsupported+java.xml
-            --add-modules java.base,java.desktop,java.xml,jdk.unsupported,javafx.base,javafx.controls,javafx.fxml,javafx.graphics \
+            --module-path "$JAVAFX_PATH" \
+            --add-modules java.base,java.desktop,java.xml,jdk.unsupported,javafx.controls,javafx.fxml,javafx.graphics \
             --java-options "-Dfile.encoding=UTF-8" \
+            --java-options "-Dprism.allowhidpi=false" \
             --verbose
 
-      - name: 上传安装包
+      - name: Upload DMG
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: BatchRenameTool-macOS-Intel
           path: target/dist/*.dmg
+          retention-days: 30
+
+      - name: Create Release
+        if: github.event_name == 'push' && success()
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/dist/*.dmg
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            ## 批量文件夹重命名工具 - macOS Intel 版本
+            
+            ### 功能特性
+            - ✅ 批量重命名文件夹（支持 Excel 导入）
+            - ✅ 批量重命名文件夹内的文件
+            - ✅ 自动分类文件到对应文件夹
+            
+            ### 系统要求
+            - macOS 10.15 或更高版本
+            - Intel 处理器 Mac（原生支持）
+            - 无需安装 Java 环境（已内置 JRE）
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
