@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-macos-intel:
-    runs-on: macos-13      # ✅ 唯一正确的 Intel 打包机
+    runs-on: macos-13
     
     steps:
       - name: Checkout code
@@ -23,7 +23,7 @@ jobs:
         run: |
           curl -L https://download2.gluonhq.com/openjfx/17.0.2/openjfx-17.0.2_osx-x64_bin-sdk.zip -o javafx.zip
           unzip -q javafx.zip -d /tmp/
-          echo "JAVAFX_PATH=/tmp/javafx-sdk-17.0.2/lib" >> $GITHUB_ENV
+          echo "JAVAFX_PATH=/tmp/javafx-sdk-17.0.2/lib" >> "$GITHUB_ENV"
 
       - name: Build with Maven
         run: |
@@ -42,10 +42,9 @@ jobs:
             --app-version 1.0.0 \
             --vendor "RT" \
             --mac-package-identifier com.rt.batchtool \
-            --module-path "$JAVAFX_PATH" \
-            --add-modules java.base,java.desktop,java.xml,jdk.unsupported,javafx.controls,javafx.fxml,javafx.graphics \
+            --module-path "${{ env.JAVAFX_PATH }}" \
+            --add-modules java.base,java.desktop,java.xml,jdk.unsupported,javafx.base,javafx.controls,javafx.fxml,javafx.graphics \
             --java-options "-Dfile.encoding=UTF-8" \
-            --java-options "-Dprism.allowhidpi=false" \
             --verbose
 
       - name: Upload DMG
@@ -72,9 +71,9 @@ jobs:
             - ✅ 自动分类文件到对应文件夹
             
             ### 系统要求
-            - macOS 10.15 或更高版本
-            - Intel 处理器 Mac（原生支持）
-            - 无需安装 Java 环境（已内置 JRE）
+            - macOS 10.15+
+            - Intel 处理器（原生支持）
+            - 无需安装 Java
           draft: false
           prerelease: false
         env:
